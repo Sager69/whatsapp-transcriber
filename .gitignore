@@ -1,0 +1,6 @@
+node_modules/
+.wrangler/
+.dev.vars
+# Bake-off inputs/outputs are private voice notes and their transcripts - never commit them.
+bakeoff/*
+!bakeoff/README.md

@@ -1,0 +1,25 @@
+# Deployed with `npx wrangler deploy`. The public hostname (custom domain) is attached in the
+# Cloudflare dashboard, so it is not part of this repo. Secrets: see README.
+name = "whatsapp-transcriber"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = false
+# Keep variables added in the dashboard (e.g. ALLOWED_NUMBERS) when deploying.
+keep_vars = true
+
+[observability]
+enabled = true
+
+[[workflows]]
+name = "whatsapp-transcriber-jobs"
+binding = "TRANSCRIBE"
+class_name = "TranscribeWorkflow"
+
+[vars]
+GRAPH_API_VERSION = "v25.0"
+GEMINI_MODEL = "gemini-3.8-flash"
+TLDR_MODEL = "gemini-3.8-flash"
+TLDR_MIN_SECONDS = "60"
+MAX_AUDIO_SECONDS = "1800"
+CROSSCHECK_MAX_SECONDS = "8"
+CROSSCHECK_MIN_AGREEMENT = "0.5"
