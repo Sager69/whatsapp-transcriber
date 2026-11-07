@@ -50,6 +50,60 @@ WhatsApp Cloud API ──POST /webhook──▶ Worker
 
 ---
 
+# Set it up with an AI coding agent
+
+You can hand the setup to a coding agent (Claude Code, Codex, Cursor, …) running in a terminal where
+it can use `git`, `npm` and `npx wrangler`. The agent does the code, the deploy and the checks. You do
+the parts that need a browser login: the Meta dashboard, creating API keys, and entering secrets.
+
+Paste this prompt into the agent:
+
+````text
+Set up the WhatsApp voice-note transcriber from this repository for me:
+<REPO URL>
+
+Read README.md first. Its "Setup" section (Steps 1–11) is the source of truth; follow it in order.
+I want the bot at this hostname on my Cloudflare domain: <e.g. transcribe.example.com>
+
+How to work with me:
+- Ask me for one thing at a time, and wait until I confirm it's done before moving on.
+- Whenever I need to get a value or click something, give exact directions: the full URL to open,
+  and every menu, button and field name in order. Never just say "the X token" or "your app secret"
+  without telling me exactly where to find it.
+- Never ask me to paste API keys, tokens or secrets into this chat. I'll enter secrets myself, either
+  in the Cloudflare dashboard (Step 7) or by running `npx wrangler secret put <NAME>` in my terminal.
+  Tell me the exact names to use.
+- Don't push to git, force-push, or delete anything unless I ask.
+
+What you do yourself:
+- Clone the repo, run `npm install`, `npm test` and `npm run typecheck`, and fix anything that fails.
+- Deploy with `npm run deploy` (have me run `npx wrangler login` first if wrangler isn't logged in).
+  If the deploy says Workflows need a workers.dev subdomain, walk me through Step 5, then retry.
+- Walk me through attaching the custom domain (Step 6) and check that https://<hostname>/healthz
+  returns {"ok":true}.
+- Before I verify the webhook in Meta (Step 8), run `npx wrangler secret list` and confirm
+  WA_VERIFY_TOKEN is there.
+- After I've done Steps 8–10, ask me to send a voice note from an allowlisted number, then check:
+  `npx wrangler workflows instances list whatsapp-transcriber-jobs` should show a new run, and
+  `npx wrangler workflows instances describe whatsapp-transcriber-jobs <id>` shows each step's result.
+  If no run appears, use the README's Troubleshooting table. The usual causes are Step 9 (WhatsApp
+  account not subscribed to the app) and Step 10 (app not published).
+
+What I do (guide me through each with exact directions):
+- Steps 1–4: the Gemini and Cohere keys, the Meta app and test number, the system-user token, the
+  app secret and the verify token.
+- Step 7: entering the secrets.
+- Steps 8–10: connecting the webhook, subscribing the WhatsApp account, publishing the app.
+- Step 11: test messages from my phone.
+
+When everything works, give me a short summary: the bot's WhatsApp number, how to add a user, and
+where to find the logs.
+````
+
+Replace `<REPO URL>` and the hostname before sending.
+
+---
+
 # Setup
 
 You need:
