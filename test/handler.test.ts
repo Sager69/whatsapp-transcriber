@@ -90,5 +90,10 @@ describe("other routes", () => {
     expect(html).toContain("never stored");
     expect(html).toContain("me@example.com");
   });
-  it("unknown paths 404", async () => expect((await handleRequest(new Request("https://x/"), env, new Queue())).status).toBe(404));
+  it("home page", async () => {
+    const r = await handleRequest(new Request("https://x/"), env, new Queue());
+    expect(r.status).toBe(200);
+    expect(await r.text()).toContain("/privacy");
+  });
+  it("unknown paths 404", async () => expect((await handleRequest(new Request("https://x/nope"), env, new Queue())).status).toBe(404));
 });

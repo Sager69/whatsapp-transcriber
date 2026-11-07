@@ -23,6 +23,7 @@ export async function handleRequest(req: Request, env: Env, queue: JobQueue): Pr
   const url = new URL(req.url);
 
   if (url.pathname === "/healthz") return Response.json({ ok: true });
+  if (url.pathname === "/") return new Response(homeHtml(), { headers: { "content-type": "text/html; charset=utf-8" } });
   if (url.pathname === "/privacy") return new Response(privacyHtml(env.CONTACT_EMAIL), { headers: { "content-type": "text/html; charset=utf-8" } });
   if (url.pathname !== "/webhook") return new Response("not found", { status: 404 });
 
@@ -57,6 +58,16 @@ export async function handleRequest(req: Request, env: Env, queue: JobQueue): Pr
     }
   }
   return new Response("ok");
+}
+
+function homeHtml(): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice-note transcriber</title></head><body style="font:16px/1.6 system-ui;max-width:40em;margin:2em auto;padding:0 16px">
+<h1>Voice-note transcriber</h1>
+<p>A private WhatsApp bot for a small group of invited users. Forward it a voice note and it replies with a
+transcript in the language that was spoken, including Levantine Arabic mixed with English. Notes longer than a
+minute also get a short summary.</p>
+<p><a href="/privacy">Privacy policy</a></p></body></html>`;
 }
 
 function privacyHtml(contact?: string): string {
