@@ -1,5 +1,6 @@
 import type { Deps, Job, Step } from "../src/pipeline";
 import { makeSealer } from "../src/seal";
+import { sendDelivery, type Delivery } from "../src/outbox";
 import type { Transcriber, Transcript } from "../src/transcribe";
 
 export class FakeWA {
@@ -36,8 +37,13 @@ export const SETTINGS = {
 
 const sealer = await makeSealer("test-secret");
 
+/** Outbox stand-in for pipeline tests: sends each delivery straight away (ordering is tested in outbox.test.ts). */
+export const directOutbox = (wa: FakeWA) => ({
+  deliver: async (_seq: number, sealed: string) => sendDelivery(wa, await sealer.open<Delivery>(sealed)),
+});
+
 export function deps(over: Partial<Deps> & { wa: FakeWA }): Deps {
-  return { stt: new FakeSTT(), summarizer: { tldr: async () => "رايح عالاجتماع بكرا" }, settings: SETTINGS, sealer, ...over } as Deps;
+  return { stt: new FakeSTT(), summarizer: { tldr: async () => "رايح عالاجتماع بكرا" }, settings: SETTINGS, sealer, outbox: directOutbox(over.wa), ...over } as Deps;
 }
 
-export const job = (over: Partial<Job> = {}): Job => ({ from: "9617000000", messageId: "wamid.1", type: "audio", mediaId: "media1", ...over });
+export const job = (over: Partial<Job> = {}): Job => ({ from: "9617000000", messageId: "wamid.1", type: "audio", mediaId: "media1", seq: 1, ...over });

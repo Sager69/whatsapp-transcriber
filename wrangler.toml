@@ -15,6 +15,15 @@ name = "whatsapp-transcriber-jobs"
 binding = "TRANSCRIBE"
 class_name = "TranscribeWorkflow"
 
+# Per-sender reply ordering (SQLite-backed Durable Objects are on the free plan).
+[[durable_objects.bindings]]
+name = "OUTBOX"
+class_name = "SenderOutbox"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SenderOutbox"]
+
 [vars]
 GRAPH_API_VERSION = "v25.0"
 GEMINI_MODEL = "gemini-3.8-flash"

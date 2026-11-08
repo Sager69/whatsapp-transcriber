@@ -5,6 +5,7 @@ import { normalize } from "../src/agreement";
 import { settings, type Env } from "../src/config";
 import { processMessage } from "../src/pipeline";
 import { makeSealer } from "../src/seal";
+import { sendDelivery, type Delivery } from "../src/outbox";
 import { CohereTranscriber, GeminiSummarizer, GeminiTranscriber } from "../src/transcribe";
 
 const dir = process.argv[2] ?? "bakeoff/samples";
@@ -25,8 +26,10 @@ for (const f of readdirSync(dir).filter((f) => /\.(opus|ogg)$/.test(f)).sort()) 
     react: async () => {},
   };
   const logs: string[] = [];
-  await processMessage({ from: "x", messageId: f, type: "audio", mediaId: f },
-    { wa, stt, crosscheck, summarizer, settings: s, sealer: await makeSealer("local"), log: (m, d) => logs.push(`${m} ${JSON.stringify(d)}`) },
+  const sealer = await makeSealer("local");
+  await processMessage({ from: "x", messageId: f, type: "audio", mediaId: f, seq: 1 },
+    { wa, stt, crosscheck, summarizer, settings: s, sealer,
+      outbox: { deliver: async (_seq, sealed) => sendDelivery(wa, await sealer.open<Delivery>(sealed)) }, log: (m, d) => logs.push(`${m} ${JSON.stringify(d)}`) },
     { do: (_n, fn) => fn() });
   const all = sent.join("\n");
   let verdict = "";

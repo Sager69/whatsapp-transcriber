@@ -3,6 +3,7 @@ import { agreement } from "./agreement";
 import { buildReplies, formatDuration, hasArabic } from "./formatting";
 import { oggOpusDurationSeconds } from "./ogg";
 import type { Settings } from "./config";
+import type { Delivery } from "./outbox";
 import type { Sealer } from "./seal";
 import type { Transcriber } from "./transcribe";
 import type { WhatsAppApi } from "./whatsapp";
@@ -11,7 +12,7 @@ export const HELP = "Forward me a voice note and I'll transcribe it.\nحوّلّ
 export const UNCLEAR = "⚠️ الصوت مش واضح، اسمع الرسالة - unclear audio, please listen to the note.";
 export const FAILED = "Sorry, I couldn't transcribe that one. Try forwarding it again.";
 
-export interface Job { from: string; messageId: string; type: string; mediaId?: string }
+export interface Job { from: string; messageId: string; type: string; mediaId?: string; /** position in the sender's reply order */ seq: number }
 export interface Step { do<T>(name: string, fn: () => Promise<T>): Promise<T> }
 export interface Deps {
   wa: WhatsAppApi;
@@ -21,6 +22,8 @@ export interface Deps {
   settings: Settings;
   /** Encrypts step outputs that contain transcript content (they are persisted by the Workflow). */
   sealer: Sealer;
+  /** Releases each sender's replies in the order their messages arrived. */
+  outbox: { deliver(seq: number, sealedDelivery: string): Promise<void> };
   log?: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -29,25 +32,23 @@ interface Result { tooLong: boolean; seconds: number | null; text: string; langu
 export async function processMessage(job: Job, d: Deps, step: Step): Promise<void> {
   const log = d.log ?? (() => {});
   const { from, messageId } = job;
-  if (job.type !== "audio" || !job.mediaId) {
-    await step.do("help", () => d.wa.replyText(from, HELP, messageId));
-    return;
-  }
+  const deliver = (replies: string[], reaction: string) =>
+    step.do("deliver", async () => {
+      const delivery: Delivery = { to: from, messageId, replies, reaction };
+      await d.outbox.deliver(job.seq, await d.sealer.seal(delivery));
+    });
+
+  if (job.type !== "audio" || !job.mediaId) return deliver([HELP], "");
+
   await step.do("react-pending", () => d.wa.react(from, messageId, "⏳"));
   try {
     const r = await d.sealer.open<Result>(
       await step.do("transcribe", async () => d.sealer.seal(await transcribe(job.mediaId!, d, log))));
     if (r.tooLong) {
-      await step.do("reply-too-long", () => d.wa.replyText(from,
-        `That note is ${formatDuration(r.seconds!)} long - the limit is ${formatDuration(d.settings.maxAudioSeconds)}.`, messageId));
-      await step.do("react-done", () => d.wa.react(from, messageId, "❌"));
-      return;
+      return deliver([`That note is ${formatDuration(r.seconds!)} long - the limit is ${formatDuration(d.settings.maxAudioSeconds)}.`], "❌");
     }
-    if (!r.text) {
-      await step.do("reply-empty", () => d.wa.replyText(from, "🤷 No speech detected.", messageId));
-      await step.do("react-done", () => d.wa.react(from, messageId, "✅"));
-      return;
-    }
+    if (!r.text) return deliver(["🤷 No speech detected."], "✅");
+
     let tldr: string | null = null;
     if (r.seconds !== null && r.seconds > d.settings.tldrMinSeconds) {
       tldr = await d.sealer.open<string | null>(await step.do("tldr", async () => {
@@ -57,17 +58,11 @@ export async function processMessage(job: Job, d: Deps, step: Step): Promise<voi
     }
     const replies = buildReplies(r.text, tldr, hasArabic(r.text));
     if (r.unclear) replies[0] = `${UNCLEAR}\n\n${replies[0]}`;
-    for (const [i, part] of replies.entries()) {
-      await step.do(`reply-${i}`, () => d.wa.replyText(from, part, messageId));
-    }
-    await step.do("react-done", () => d.wa.react(from, messageId, "✅"));
-    log("transcribed", { seconds: r.seconds, language: r.language, chars: r.text.length, tldr: !!tldr, unclear: r.unclear });
+    await deliver(replies, "✅");
+    log("transcribed", { seq: job.seq, seconds: r.seconds, language: r.language, chars: r.text.length, tldr: !!tldr, unclear: r.unclear });
   } catch (e) {
     log("failed", { error: String(e) });
-    await step.do("report-failure", async () => {
-      await d.wa.react(from, messageId, "❌");
-      await d.wa.replyText(from, FAILED, messageId);
-    });
+    await deliver([FAILED], "❌");
   }
 }
 

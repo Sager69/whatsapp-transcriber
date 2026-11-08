@@ -65,11 +65,11 @@ describe("processMessage", () => {
     expect(wa.sent[0].text).toContain("limit");
   });
 
-  it("each reply is its own step, so a retry never re-sends earlier parts", async () => {
+  it("hands all replies to the outbox in one step", async () => {
     duration(95);
     const step = new InlineStep();
     await processMessage(job(), deps({ wa: new FakeWA() }), step);
-    expect(step.names).toEqual(["react-pending", "transcribe", "tldr", "reply-0", "react-done"]);
+    expect(step.names).toEqual(["react-pending", "transcribe", "tldr", "deliver"]);
   });
 });
 

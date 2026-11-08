@@ -9,7 +9,12 @@ const env = { WA_APP_SECRET: SECRET, WA_VERIFY_TOKEN: "vt", ALLOWED_NUMBERS: "+9
 
 class Queue implements JobQueue {
   jobs = new Map<string, Job>();
+  seqs = new Map<string, number>();
   failNext = false;
+  async sequence(from: string, id: string) {
+    if (!this.seqs.has(id)) this.seqs.set(id, [...this.seqs.keys()].length + 1);
+    return this.seqs.get(id)!;
+  }
   async start(id: string, job: Job) {
     if (this.failNext) { this.failNext = false; throw new Error("unavailable"); }
     if (this.jobs.has(id)) throw new Error("instance already exists");
@@ -51,7 +56,7 @@ describe("webhook", () => {
   it("starts one job per allowlisted message", async () => {
     const q = new Queue();
     expect((await handleRequest(post(payload()), env, q)).status).toBe(200);
-    expect([...q.jobs.values()]).toEqual([{ from: "9617000000", messageId: "wamid.1", type: "audio", mediaId: "media1" }]);
+    expect([...q.jobs.values()]).toEqual([{ from: "9617000000", messageId: "wamid.1", type: "audio", mediaId: "media1", seq: 1 }]);
   });
 
   it("ignores numbers that are not allowlisted", async () => {
@@ -67,12 +72,20 @@ describe("webhook", () => {
     expect(q.jobs.size).toBe(1);
   });
 
-  it("asks Meta to retry when the job could not be started", async () => {
+  it("asks Meta to retry when the job could not be started, keeping its place in line", async () => {
     const q = new Queue();
     q.failNext = true;
     expect((await handleRequest(post(payload()), env, q)).status).toBe(500);
     expect((await handleRequest(post(payload()), env, q)).status).toBe(200); // redelivery succeeds
     expect(q.jobs.size).toBe(1);
+    expect([...q.jobs.values()][0].seq).toBe(1);
+  });
+
+  it("numbers a sender's messages in arrival order", async () => {
+    const q = new Queue();
+    await handleRequest(post(payload("9617000000", "wamid.A")), env, q);
+    await handleRequest(post(payload("9617000000", "wamid.B")), env, q);
+    expect([...q.jobs.values()].map((j) => [j.messageId, j.seq])).toEqual([["wamid.A", 1], ["wamid.B", 2]]);
   });
 
   it("job ids are deterministic and workflow-safe", async () => {

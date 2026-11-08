@@ -11,6 +11,7 @@ stay in Latin script.
   tends to invent text.
 - Arabic/mixed paragraphs that would start with an English word get an invisible right-to-left mark
   (U+200F), so WhatsApp lays them out right-to-left.
+- Replies come back **in the order the notes were sent**, even when a short note finishes before a long one.
 - Only allowlisted numbers are served; everyone else is ignored.
 - Audio is processed in memory and never stored. Transcripts are not stored: the Workflow state that
   Cloudflare keeps for a few days is AES-GCM encrypted with a key derived from `WA_APP_SECRET`.
@@ -22,13 +23,18 @@ Everything runs on Cloudflare (the Workers free plan is enough):
 ```
 WhatsApp Cloud API ──POST /webhook──▶ Worker
                                        verify Meta's signature, check the allowlist,
+                                       give the message its place in the sender's queue,
                                        start a Workflow named after the message id → 200
                                        (a redelivered message maps to the same Workflow, so it's ignored)
 
                      Workflow (each step retried and checkpointed)
                        react ⏳ → download audio → read its length from the Ogg container
                        → Gemini transcript (+ Cohere second opinion if < 8s)
-                       → tl;dr if > 60s → send reply message(s) → react ✅ (or ❌ + apology)
+                       → tl;dr if > 60s → hand the reply to the sender's outbox
+
+                     Outbox (one Durable Object per sender)
+                       sends replies strictly in arrival order → react ✅ (or ❌ + apology);
+                       a note stuck for 5 minutes is skipped so it can't hold up the rest
 ```
 
 | Piece | Choice | Where |
@@ -38,10 +44,11 @@ WhatsApp Cloud API ──POST /webhook──▶ Worker
 | tl;dr | Google `gemini-3.8-flash` | `src/prompt.ts` |
 | Webhook | Cloudflare Worker | `src/handler.ts` |
 | Processing | Cloudflare Workflow | `src/pipeline.ts`, `src/index.ts` |
+| Reply ordering | Cloudflare Durable Object | `src/outbox.ts` |
 
 ### Costs
 
-- **Cloudflare:** Workers free plan (100,000 requests/day; Workflows included).
+- **Cloudflare:** Workers free plan (100,000 requests/day; Workflows and SQLite Durable Objects included).
 - **WhatsApp Cloud API:** free when people message the bot first; replies within 24 hours of their
   message are free service messages.
 - **Gemini:** pay-as-you-go, billed per audio length; a fraction of a cent per minute of audio.

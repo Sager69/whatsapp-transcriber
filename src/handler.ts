@@ -4,6 +4,8 @@ import type { Job } from "./pipeline";
 import { verifySignature } from "./whatsapp";
 
 export interface JobQueue {
+  /** Reserve this message's place in the sender's reply order (idempotent per job id). */
+  sequence(from: string, id: string): Promise<number>;
   /** Start processing; must throw if it couldn't. */
   start(id: string, job: Job): Promise<void>;
   /** Whether processing for this id was already started (duplicate delivery). */
@@ -47,8 +49,10 @@ export async function handleRequest(req: Request, env: Env, queue: JobQueue): Pr
       for (const m of change.value?.messages ?? []) {
         if (!allowed.has(m.from)) { console.log("ignoring message from non-allowlisted number"); continue; }
         const id = await jobId(m.id);
+        if (await queue.exists(id)) continue; // duplicate delivery: already being handled
         try {
-          await queue.start(id, { from: m.from, messageId: m.id, type: m.type, mediaId: m.audio?.id });
+          const seq = await queue.sequence(m.from, id);
+          await queue.start(id, { from: m.from, messageId: m.id, type: m.type, mediaId: m.audio?.id, seq });
         } catch (e) {
           if (await queue.exists(id)) continue; // duplicate delivery: already being handled
           console.error("could not start job", String(e));
