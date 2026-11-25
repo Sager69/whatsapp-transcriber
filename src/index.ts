@@ -35,7 +35,7 @@ export class TranscribeWorkflow extends WorkflowEntrypoint<Bindings, Job> {
     const env = this.env, s = settings(env);
     const deps: Deps = {
       wa: whatsapp(env),
-      stt: new GeminiTranscriber(env.GEMINI_API_KEY, s.geminiModel),
+      stt: new GeminiTranscriber(env.GEMINI_API_KEY, s.geminiModel, s.geminiThinking),
       crosscheck: env.CO_API_KEY ? new CohereTranscriber(env.CO_API_KEY) : undefined,
       summarizer: new GeminiSummarizer(env.GEMINI_API_KEY, s.tldrModel),
       settings: s,

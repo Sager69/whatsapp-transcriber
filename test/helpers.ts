@@ -31,7 +31,7 @@ export class InlineStep implements Step {
 }
 
 export const SETTINGS = {
-  graphVersion: "v23.0", geminiModel: "m", tldrModel: "m", tldrMinSeconds: 60, maxAudioSeconds: 1800,
+  graphVersion: "v23.0", geminiModel: "m", geminiThinking: "off", tldrModel: "m", tldrMinSeconds: 60, maxAudioSeconds: 1800,
   crosscheckMaxSeconds: 8, crosscheckMinAgreement: 0.5,
 };
 

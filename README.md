@@ -321,6 +321,7 @@ status and errors).
 | Variable | Default | Meaning |
 |---|---|---|
 | `GEMINI_MODEL` | `gemini-3.8-flash` | transcription model |
+| `GEMINI_THINKING` | `default` | `off` is 3–4× faster (≈2–5s vs ≈6–30s) but translates some English words and gets person/gender wrong more often |
 | `TLDR_MODEL` | `gemini-3.8-flash` | tl;dr model |
 | `TLDR_MIN_SECONDS` | `60` | notes longer than this get a tl;dr |
 | `CROSSCHECK_MAX_SECONDS` | `8` | notes shorter than this get a second opinion |

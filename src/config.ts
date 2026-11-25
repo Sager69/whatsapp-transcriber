@@ -12,6 +12,7 @@ export interface Env {
   // vars
   GRAPH_API_VERSION?: string;
   GEMINI_MODEL?: string;
+  GEMINI_THINKING?: string;
   TLDR_MODEL?: string;
   TLDR_MIN_SECONDS?: string;
   MAX_AUDIO_SECONDS?: string;
@@ -22,6 +23,8 @@ export interface Env {
 export interface Settings {
   graphVersion: string;
   geminiModel: string;
+  /** "off" (fastest), "low", or "default" (the model decides; slow and erratic for transcription). */
+  geminiThinking: string;
   tldrModel: string;
   tldrMinSeconds: number;
   maxAudioSeconds: number;
@@ -35,6 +38,7 @@ export function settings(env: Env): Settings {
   return {
     graphVersion: env.GRAPH_API_VERSION || "v25.0",
     geminiModel: env.GEMINI_MODEL || "gemini-3.8-flash",
+    geminiThinking: env.GEMINI_THINKING || "default",
     tldrModel: env.TLDR_MODEL || env.GEMINI_MODEL || "gemini-3.8-flash",
     tldrMinSeconds: num(env.TLDR_MIN_SECONDS, 60),
     maxAudioSeconds: num(env.MAX_AUDIO_SECONDS, 1800),

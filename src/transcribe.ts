@@ -22,9 +22,16 @@ async function gemini(apiKey: string, model: string, body: unknown): Promise<str
   return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
 }
 
+/** Gemini's thinking adds seconds of latency and isn't needed to write down what was said. */
+export function thinkingConfig(mode: string): Record<string, unknown> | undefined {
+  if (mode === "off") return { thinkingBudget: 0 };
+  if (mode === "low") return { thinkingLevel: "low" };
+  return undefined; // "default": let the model decide
+}
+
 export class GeminiTranscriber implements Transcriber {
   name = "gemini";
-  constructor(private apiKey: string, private model: string, private instructions = TRANSCRIBE_INSTRUCTIONS) {}
+  constructor(private apiKey: string, private model: string, private thinking = "default", private instructions = TRANSCRIBE_INSTRUCTIONS) {}
 
   async transcribe(audio: Uint8Array, mime: string): Promise<Transcript> {
     const raw = await gemini(this.apiKey, this.model, {
@@ -32,6 +39,7 @@ export class GeminiTranscriber implements Transcriber {
       generationConfig: {
         temperature: 0,
         seed: 7,
+        ...(thinkingConfig(this.thinking) ? { thinkingConfig: thinkingConfig(this.thinking) } : {}),
         responseMimeType: "application/json",
         responseJsonSchema: {
           type: "object",

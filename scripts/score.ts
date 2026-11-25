@@ -13,7 +13,7 @@ const answersPath = "bakeoff/answers.local.json";
 const answers: Record<string, { contains?: string[]; start?: string }> = existsSync(answersPath) ? JSON.parse(readFileSync(answersPath, "utf8")) : {};
 const env = process.env as unknown as Env;
 const s = settings(env);
-const stt = new GeminiTranscriber(env.GEMINI_API_KEY, s.geminiModel);
+const stt = new GeminiTranscriber(env.GEMINI_API_KEY, s.geminiModel, s.geminiThinking);
 const crosscheck = env.CO_API_KEY ? new CohereTranscriber(env.CO_API_KEY) : undefined;
 const summarizer = new GeminiSummarizer(env.GEMINI_API_KEY, s.tldrModel);
 
