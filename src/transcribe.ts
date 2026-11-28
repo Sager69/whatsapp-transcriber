@@ -25,7 +25,7 @@ async function gemini(apiKey: string, model: string, body: unknown): Promise<str
 /** Gemini's thinking adds seconds of latency and isn't needed to write down what was said. */
 export function thinkingConfig(mode: string): Record<string, unknown> | undefined {
   if (mode === "off") return { thinkingBudget: 0 };
-  if (mode === "low") return { thinkingLevel: "low" };
+  if (mode === "low" || mode === "medium" || mode === "high") return { thinkingLevel: mode };
   return undefined; // "default": let the model decide
 }
 

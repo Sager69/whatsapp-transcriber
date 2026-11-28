@@ -18,6 +18,7 @@ const crosscheck = env.CO_API_KEY ? new CohereTranscriber(env.CO_API_KEY) : unde
 const summarizer = new GeminiSummarizer(env.GEMINI_API_KEY, s.tldrModel);
 
 let passed = 0, scored = 0;
+const times: number[] = [];
 for (const f of readdirSync(dir).filter((f) => /\.(opus|ogg)$/.test(f)).sort()) {
   const sent: string[] = [];
   const wa = {
@@ -27,6 +28,7 @@ for (const f of readdirSync(dir).filter((f) => /\.(opus|ogg)$/.test(f)).sort()) 
   };
   const logs: string[] = [];
   const sealer = await makeSealer("local");
+  const t0 = Date.now();
   await processMessage({ from: "x", messageId: f, type: "audio", mediaId: f, seq: 1 },
     { wa, stt, crosscheck, summarizer, settings: s, sealer,
       outbox: { deliver: async (_seq, sealed) => sendDelivery(wa, await sealer.open<Delivery>(sealed)) }, log: (m, d) => logs.push(`${m} ${JSON.stringify(d)}`) },
@@ -41,6 +43,10 @@ for (const f of readdirSync(dir).filter((f) => /\.(opus|ogg)$/.test(f)).sort()) 
     if (ok) passed++;
     verdict = ok ? " ✓" : " ✗";
   }
-  console.log(`--- ${f}${verdict}\n${all}\n  [${logs.join(" | ")}]`);
+  const secs = (Date.now() - t0) / 1000;
+  times.push(secs);
+  console.log(`--- ${f}${verdict} (${secs.toFixed(1)}s)\n${all}\n  [${logs.join(" | ")}]`);
 }
 if (scored) console.log(`\nanswer key: ${passed}/${scored} passed`);
+const sorted = [...times].sort((a, b) => a - b);
+console.log(`time per note: median ${sorted[Math.floor(sorted.length / 2)].toFixed(1)}s, slowest ${sorted.at(-1)!.toFixed(1)}s, total ${times.reduce((a, b) => a + b, 0).toFixed(0)}s`);
