@@ -73,6 +73,36 @@ describe("processMessage", () => {
   });
 });
 
+describe("⏳ reaction", () => {
+  it("transcription starts without waiting for the ⏳ reaction", async () => {
+    duration(20);
+    const wa = new FakeWA();
+    let releaseReact!: () => void;
+    wa.react = async (_to, _id, emoji) => {
+      if (emoji === "⏳") await new Promise<void>((r) => (releaseReact = r));
+      wa.reactions.push(emoji);
+    };
+    const stt = new FakeSTT();
+    const run = processMessage(job(), deps({ wa, stt }), new InlineStep());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(stt.calls).toBe(1);        // already transcribing
+    expect(wa.sent).toHaveLength(0);  // but the reply waits for ⏳ to finish
+    releaseReact();
+    await run;
+    expect(wa.reactions).toEqual(["⏳", "✅"]); // ✅ never lands before ⏳
+    expect(wa.sent).toHaveLength(1);
+  });
+
+  it("a failed ⏳ reaction doesn't stop the transcript", async () => {
+    duration(20);
+    const wa = new FakeWA();
+    wa.react = async (_to, _id, emoji) => { if (emoji === "⏳") throw new Error("graph 500"); wa.reactions.push(emoji); };
+    await processMessage(job(), deps({ wa }), new InlineStep());
+    expect(wa.sent).toHaveLength(1);
+    expect(wa.reactions).toEqual(["✅"]);
+  });
+});
+
 describe("short-note cross-check", () => {
   it("flags a short note when the two systems disagree", async () => {
     duration(2.6);

@@ -32,15 +32,20 @@ interface Result { tooLong: boolean; seconds: number | null; text: string; langu
 export async function processMessage(job: Job, d: Deps, step: Step): Promise<void> {
   const log = d.log ?? (() => {});
   const { from, messageId } = job;
-  const deliver = (replies: string[], reaction: string) =>
-    step.do("deliver", async () => {
+  // ⏳ runs alongside transcription; it only has to finish before the reply and ✅ go out.
+  let pending: Promise<unknown> = Promise.resolve();
+  const deliver = async (replies: string[], reaction: string) => {
+    await pending;
+    await step.do("deliver", async () => {
       const delivery: Delivery = { to: from, messageId, replies, reaction };
       await d.outbox.deliver(job.seq, await d.sealer.seal(delivery));
     });
+  };
 
   if (job.type !== "audio" || !job.mediaId) return deliver([HELP], "");
 
-  await step.do("react-pending", () => d.wa.react(from, messageId, "⏳"));
+  pending = step.do("react-pending", () => d.wa.react(from, messageId, "⏳"))
+    .catch((e) => log("⏳ reaction failed", { error: String(e) }));
   try {
     const r = await d.sealer.open<Result>(
       await step.do("transcribe", async () => d.sealer.seal(await transcribe(job.mediaId!, d, log))));
