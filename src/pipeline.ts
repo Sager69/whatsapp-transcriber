@@ -32,20 +32,28 @@ interface Result { tooLong: boolean; seconds: number | null; text: string; langu
 export async function processMessage(job: Job, d: Deps, step: Step): Promise<void> {
   const log = d.log ?? (() => {});
   const { from, messageId } = job;
-  // ⏳ runs alongside transcription; it only has to finish before the reply and ✅ go out.
+  // ⏳ runs alongside transcription and never holds up the reply. WhatsApp keeps one reaction per
+  // message, so if the ⏳ lands after the final ✅/❌, the final reaction is sent again once it has.
   let pending: Promise<unknown> = Promise.resolve();
+  let reactSettled = true;
   const deliver = async (replies: string[], reaction: string) => {
-    await pending;
+    const reactStillRunning = !reactSettled;
     await step.do("deliver", async () => {
       const delivery: Delivery = { to: from, messageId, replies, reaction };
       await d.outbox.deliver(job.seq, await d.sealer.seal(delivery));
     });
+    if (reactStillRunning && reaction) {
+      await pending;
+      await step.do("react-final", () => d.wa.react(from, messageId, reaction));
+    }
   };
 
   if (job.type !== "audio" || !job.mediaId) return deliver([HELP], "");
 
+  reactSettled = false;
   pending = step.do("react-pending", () => d.wa.react(from, messageId, "⏳"))
-    .catch((e) => log("⏳ reaction failed", { error: String(e) }));
+    .catch((e) => log("⏳ reaction failed", { error: String(e) }))
+    .finally(() => { reactSettled = true; });
   try {
     const r = await d.sealer.open<Result>(
       await step.do("transcribe", async () => d.sealer.seal(await transcribe(job.mediaId!, d, log))));

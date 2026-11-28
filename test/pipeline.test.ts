@@ -74,7 +74,7 @@ describe("processMessage", () => {
 });
 
 describe("⏳ reaction", () => {
-  it("transcription starts without waiting for the ⏳ reaction", async () => {
+  it("the transcript goes out without waiting for a slow ⏳, and ✅ ends up as the final reaction", async () => {
     duration(20);
     const wa = new FakeWA();
     let releaseReact!: () => void;
@@ -85,12 +85,20 @@ describe("⏳ reaction", () => {
     const stt = new FakeSTT();
     const run = processMessage(job(), deps({ wa, stt }), new InlineStep());
     await new Promise((r) => setTimeout(r, 10));
-    expect(stt.calls).toBe(1);        // already transcribing
-    expect(wa.sent).toHaveLength(0);  // but the reply waits for ⏳ to finish
+    expect(stt.calls).toBe(1);
+    expect(wa.sent).toHaveLength(1); // transcript already sent while ⏳ is still in flight
     releaseReact();
     await run;
-    expect(wa.reactions).toEqual(["⏳", "✅"]); // ✅ never lands before ⏳
-    expect(wa.sent).toHaveLength(1);
+    expect(wa.reactions.at(-1)).toBe("✅"); // the late ⏳ didn't win
+  });
+
+  it("no extra reaction when the ⏳ finished first (the normal case)", async () => {
+    duration(20);
+    const wa = new FakeWA();
+    const step = new InlineStep();
+    await processMessage(job(), deps({ wa }), step);
+    expect(wa.reactions).toEqual(["⏳", "✅"]);
+    expect(step.names).not.toContain("react-final");
   });
 
   it("a failed ⏳ reaction doesn't stop the transcript", async () => {
